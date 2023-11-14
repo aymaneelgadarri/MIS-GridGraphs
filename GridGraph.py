@@ -32,7 +32,7 @@ class GridGraph:
         edges_to_draw = [(u, v) for u, v in G.edges() if u in occupied_nodes and v in occupied_nodes]
         labels = nx.get_node_attributes(G, 'effective_bit')
         labels = {node: label for node, label in labels.items() if label != -1}
-        nx.draw_networkx_edges(G, pos, edgelist=edges_to_draw, edge_color='b', width=2)
+        nx.draw_networkx_edges(G, pos, edgelist=edges_to_draw, edge_color='r', width=2)
         nx.draw_networkx_nodes(G, pos, occupied_nodes)
         nx.draw_networkx_labels(G, pos, labels = labels)
         plt.show()
@@ -78,7 +78,7 @@ class GridGraph:
     def optimize_row_order(self, adj_mat):
         for i in range(self.n):
             j = i + 1
-            while j < self.n and adj_mat[self.col_order[i],self.row_order[j]] == 0 and np.where(self.col_order == self.row_order[j])[0] > i:
+            while j < self.n - 1 and adj_mat[self.col_order[i],self.row_order[j]] == 0 and np.where(self.col_order == self.row_order[j])[0] > i:
                 self.row_order[j-1], self.row_order[j] = self.row_order[j], self.row_order[j - 1]
                 j += 1
             
@@ -86,16 +86,3 @@ class GridGraph:
                     
 # !!! Note that the crossing lattice representation requires that the last element of row order is same as column since it ll be just a vertical lign (This doesn't clash with the row optimization algorithm)
         
-row_order = [0, 1, 2, 3]
-col_order = [0 ,1 , 2, 3]
-adj_mat = np.ones((4,4))
-adj_mat[0, 1] = 0
-adj_mat[1,0] = 0
-adj_mat[0, 2] = 0
-adj_mat[2,0] = 0
-
-g = GridGraph(4,2)
-g.optimize_row_order(adj_mat)
-print( g.row_order)
-g.populate_graph(adj_mat, list(g.row_order), list(g.col_order))
-g.draw()
