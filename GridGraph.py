@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from networkx.utils import flatten, nodes_or_number, pairwise
 import numpy as np
 import Block
-
+from PathDecomposition import pathwidth, Branching, Greedy
 class GridGraph:   
     def __init__(self, n, padding = 2):
         self.padding = padding
@@ -33,8 +33,10 @@ class GridGraph:
         labels = nx.get_node_attributes(G, 'effective_bit')
         labels = {node: label for node, label in labels.items() if label != -1}
         nx.draw_networkx_edges(G, pos, edgelist=edges_to_draw, edge_color='r', width=2)
-        nx.draw_networkx_nodes(G, pos, occupied_nodes)
+        nx.draw_networkx_nodes(G, pos, nodelist= occupied_nodes, node_size= 10)
         nx.draw_networkx_labels(G, pos, labels = labels)
+        plt.title('Number of nodes: ' + str(len(occupied_nodes)))
+        plt.figure(figsize=(20,100))
         plt.show()
 
     def set_occupied(self, i, j, occupied = True):
@@ -51,8 +53,12 @@ class GridGraph:
         padding = self.padding
         # We put the row bits in the first line after the padding
         for i in range(self.n):
-            self.set_occupied(padding, padding + 2 + 4 * i)
-            self.set_effective_bit(padding, padding + 2 + 4 * i, effective_bit = col_order[i])
+            self.set_occupied(padding, padding + 4 * i)
+            self.set_effective_bit(padding, padding + 4 * i, effective_bit = col_order[i])
+
+        # put the last column of lone bits
+        for j in range(self.n - 1):
+            self.set_occupied(padding + 2 + 4 * j, padding + 2 + 4 * (self.n - 1)) 
 
         # We construct the graph block by block
         # block 1 : (padding + 1, padding)
@@ -62,27 +68,67 @@ class GridGraph:
                 col = col_order[j]
                 row = row_order[i]
                 if row == col:
-                    Block.turn(self, padding + 1 + 4 * i, padding + 4 * j)
+                    Block.turn(self, padding + 1 + 4 * i, padding + 4 * j - 2)
                 
                 
                 elif row_order.index(col) > i and j < col_order.index(row):
-                    Block.vertical_lign(self, padding + 1 + 4 * i, padding + 4 * j)
+                    Block.vertical_lign(self, padding + 1 + 4 * i, padding + 4 * j - 2)
                 elif j > col_order.index(row) and i > row_order.index(col):
-                    Block.horizontal_lign(self, padding + 1 + 4 * i, padding + 4 * j)
+                    Block.horizontal_lign(self, padding + 1 + 4 * i, padding + 4 * j - 2)
                 elif j > i :
                     if adj_mat[row,col] == 1:
-                        Block.crossing_with_edge(self, padding + 1 + 4 * i, padding + 4 * j)
+                        Block.crossing_with_edge(self, padding + 1 + 4 * i, padding + 4 * j - 2)
                     else:
-                        Block.crossing_without_edge(self, padding + 1 + 4 * i, padding + 4 * j)
+                        Block.crossing_without_edge(self, padding + 1 + 4 * i, padding + 4 * j - 2)
         
     def optimize_row_order(self, adj_mat):
+        col_order_map = {self.col_order[i]: i for i in range(self.n)}
+        row_order_map = {self.row_order[i]: i for i in range(self.n)}
         for i in range(self.n):
-            j = i + 1
-            while j < self.n - 1 and adj_mat[self.col_order[i],self.row_order[j]] == 0 and np.where(self.col_order == self.row_order[j])[0] > i:
+            j = row_order_map[self.col_order[i]] + 1
+            while j < self.n and adj_mat[self.col_order[i],self.row_order[j]] == 0 and col_order_map[self.row_order[j]] > i :
+                row_order_map[self.row_order[j-1]], row_order_map[self.row_order[j]] = j, j - 1
                 self.row_order[j-1], self.row_order[j] = self.row_order[j], self.row_order[j - 1]
+                 
                 j += 1
-            
-                
-                    
+
+    '''
+    Deletes the last crossings with no edge in a lign with vertical ligns when there are no more crossings with edge.
+    ..●..      ..●.
+    ●●●.●      ●.●.
+    .●●●.   -> ..●.
+    .●...      ..●.
+
+    Use after populating and optimizing the row order.
+    '''
+
+    def optimize_crossings_no_edge(self, adj_mat):
+        # TODO : Careful when modifying weights later for the lone node.             
+        for i in range(self.n - 1):
+            j = self.n - 1
+            while j > i and adj_mat[self.row_order[i], self.col_order[j]] == 0 and self.row_order[i] != self.col_order[j]:
+                row = self.padding + 1 + 4 * i
+                col = self.padding + 4 * j - 2
+                self.set_occupied(row + 1, col + 1, False)
+                self.set_occupied(row + 2, col + 1, False)
+                self.set_occupied(row + 2, col + 3, False)
+                self.set_occupied(row + 3, col + 1, False)
+                self.set_occupied(row + 3, col + 2, True)
+                self.set_occupied(row + 1, col + 4, False)
+                j -= 1
+
+    """
+    Set the rows and columns with path decomposition with pathwidth from PathDecomposition class.
+    Takes as argument:
+    adj_mat : Adjacency Matrix
+    method : Exact using branch and Bound : "Branching()" or greedy : "Greedy(n_repeat = 10)" with best result among n_repeat iterations of greedy.
+    """
+    def set_cols_rows_with_path_decomposition(self, adj_mat, method = Branching()):
+        g = nx.from_numpy_array(adj_mat)
+        nodes_order = np.array(pathwidth(g, method).vertices)
+        self.col_order = nodes_order.copy()
+        self.row_order = nodes_order.copy()
+
+
 # !!! Note that the crossing lattice representation requires that the last element of row order is same as column since it ll be just a vertical lign (This doesn't clash with the row optimization algorithm)
         

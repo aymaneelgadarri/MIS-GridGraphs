@@ -1,3 +1,4 @@
+# Non used
 class Node:
     def __init__(self, i, j, occupied = False, weight = 1):
         self.i = i
